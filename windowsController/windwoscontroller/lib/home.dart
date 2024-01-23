@@ -23,16 +23,19 @@ class _HomeState extends State<Home> {
 
   var swieplist = <Offset>[];
   var capturing = false;
+  String mysid = "";
+
+  String myPhoneSid = "";
 
   @override
   void initState() {
     // TODO: implement initState
     super.initState();
 
-    TryConnecting();
+    tryConnecting();
   }
 
-  void TryConnecting() async {
+  void tryConnecting() async {
     var _token = await getToken();
     socket = IO.io(
         'ws://192.168.1.13:5000',
@@ -53,17 +56,23 @@ class _HomeState extends State<Home> {
 
   void connect(String key) async {
     socket.onConnect((_) {
-      print('connect');
+      print('connected');
     });
 
-    socket.on('message', (data) => print(data));
+    socket.on("getsid", (data) {
+      mysid = data;
+    });
 
     socket.onDisconnect(
       (_) {
         socket.emit("message", [
-          {"data": "stop capture"}
+          {
+            "data": "stop capture",
+            "target": myPhoneSid,
+            "sid": mysid,
+          }
         ]);
-        print('disconnect');
+        print('disconnected');
         capturing = false;
       },
     );
@@ -81,7 +90,11 @@ class _HomeState extends State<Home> {
 
   lock() {
     socket.emit("message", [
-      {"data": "lock"}
+      {
+        "data": "lock",
+        "target": myPhoneSid,
+        "sid": mysid,
+      }
     ]);
   }
 
@@ -92,7 +105,11 @@ class _HomeState extends State<Home> {
         imageString = null;
       });
       socket.emit("message", [
-        {"data": "stop capture"}
+        {
+          "data": "stop capture",
+          "target": myPhoneSid,
+          "sid": mysid,
+        }
       ]);
     } else {
       if (socket.connected) {
@@ -101,19 +118,27 @@ class _HomeState extends State<Home> {
         });
 
         socket.emit("message", [
-          {"data": "capture"}
+          {
+            "data": "capture",
+            "target": myPhoneSid,
+            "sid": mysid,
+          }
         ]);
       }
     }
   }
 
-  void volumeUpFunction() { 
+  void volumeUpFunction() {
     if (socket.connected == false) {
       return;
     }
 
     socket.emit("message", [
-      {"data": "volumeUp"}
+      {
+        "data": "volumeUp",
+        "target": myPhoneSid,
+        "sid": mysid,
+      }
     ]);
   }
 
@@ -124,7 +149,11 @@ class _HomeState extends State<Home> {
     socket.emit(
       "message",
       [
-        {"data": "volumeDown"}
+        {
+          "data": "volumeDown",
+          "target": myPhoneSid,
+          "sid": mysid,
+        }
       ],
     );
   }
@@ -134,7 +163,9 @@ class _HomeState extends State<Home> {
       {
         "data": "tap",
         "x": ((x / width) * 100).toStringAsFixed(2),
-        "y": ((y / height) * 100).toStringAsFixed(2)
+        "y": ((y / height) * 100).toStringAsFixed(2),
+        "target": myPhoneSid,
+        "sid": mysid,
       }
     ]);
   }
@@ -154,6 +185,8 @@ class _HomeState extends State<Home> {
         "y1": y1.toStringAsFixed(2),
         "x2": x2.toStringAsFixed(2),
         "y2": y2.toStringAsFixed(2),
+        "target": myPhoneSid,
+        "sid": mysid,
       }
     ]);
   }
