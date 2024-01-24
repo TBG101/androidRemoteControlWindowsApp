@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:windwoscontroller/home.dart';
+import 'package:windwoscontroller/phoneSelector.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -67,7 +68,8 @@ class _LoginPageState extends State<LoginPage> {
             {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => const Home()),
+                MaterialPageRoute(
+                    builder: (context) => const PhoneSelectorPage()),
               )
             }
         });
@@ -128,7 +130,8 @@ class _LoginPageState extends State<LoginPage> {
                     if (value) {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => const Home()),
+                        MaterialPageRoute(
+                            builder: (context) => const PhoneSelectorPage()),
                       );
                     }
                   });

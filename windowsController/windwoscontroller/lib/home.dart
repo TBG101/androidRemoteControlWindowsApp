@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:socket_io_client/socket_io_client.dart';
+import 'package:windwoscontroller/phoneSelector.dart';
 import 'package:windwoscontroller/widget/buttonWidget.dart';
 
 class Home extends StatefulWidget {
@@ -26,12 +27,12 @@ class _HomeState extends State<Home> {
   String mysid = "";
 
   String myPhoneSid = "";
+  List myphones = [];
 
   @override
   void initState() {
     // TODO: implement initState
     super.initState();
-
     tryConnecting();
   }
 
@@ -193,16 +194,21 @@ class _HomeState extends State<Home> {
 
   @override
   void dispose() {
-    super.dispose();
-    socket.dispose();
     socket.disconnect();
+    socket.dispose();
     socket.destroy();
+    super.dispose();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Stack(
+  selectPhone(int index) {
+    setState(() {
+      myPhoneSid = myphones[index];
+    });
+  }
+
+  pageSelector() {
+    if (myPhoneSid != "") {
+      return Stack(
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.start,
@@ -276,7 +282,14 @@ class _HomeState extends State<Home> {
             ],
           ),
         ],
-      ),
-    );
+      );
+    } else {
+      return const PhoneSelectorPage(myPhones: []);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(body: pageSelector());
   }
 }
