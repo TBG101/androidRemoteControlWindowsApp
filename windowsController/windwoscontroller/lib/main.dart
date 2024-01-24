@@ -2,15 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:windwoscontroller/Login.dart';
 
-import 'package:windwoscontroller/home.dart';
-
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  WindowOptions windowOptions =
-      const WindowOptions(minimumSize: Size(500, 1000));
-
-  windowManager.waitUntilReadyToShow(windowOptions, () async {
+  windowManager.waitUntilReadyToShow(
+      const WindowOptions(
+        center: true,
+      ), () async {
     await windowManager.show();
     await windowManager.focus();
   });

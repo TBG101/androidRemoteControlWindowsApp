@@ -11,10 +11,13 @@ class PhoneWidget extends StatelessWidget {
       child: Column(
         children: [
           Expanded(
-            child: SizedBox(
-              width: width,
-              child: Image.asset(
-                "assets/images/phone.png",
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 350),
+              child: SizedBox(
+                width: width,
+                child: Image.asset(
+                  "assets/images/phone.png",
+                ),
               ),
             ),
           ),

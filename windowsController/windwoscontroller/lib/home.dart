@@ -27,7 +27,7 @@ class _HomeState extends State<Home> {
   String mysid = "";
 
   String myPhoneSid = "";
-  List myphones = [];
+  List<String> myphones = [];
 
   @override
   void initState() {
@@ -43,7 +43,7 @@ class _HomeState extends State<Home> {
         OptionBuilder().setTransports(["websocket"]).setExtraHeaders({
           'Authorization': ['Bearer $_token'],
           'autoConnect': true,
-          "hardware": "phone"
+          "hardware": "pc"
         }).build());
     connect(_token);
   }
@@ -62,17 +62,30 @@ class _HomeState extends State<Home> {
 
     socket.on("getsid", (data) {
       mysid = data;
+      print(mysid);
+    });
+
+    socket.on("getphones", (data) {
+      String cleanedString =
+          data.replaceAll('[', '').replaceAll(']', '').replaceAll("'", '');
+      List<String> resultList = cleanedString.split(',');
+      setState(() {
+        myphones = resultList.map((element) => element.trim()).toList();
+      });
+      print(myphones);
     });
 
     socket.onDisconnect(
       (_) {
-        socket.emit("message", [
-          {
-            "data": "stop capture",
-            "target": myPhoneSid,
-            "sid": mysid,
-          }
-        ]);
+        if (mysid != "") {
+          socket.emit("message", [
+            {
+              "data": "stop capture",
+              "target": myPhoneSid,
+              "sid": mysid,
+            }
+          ]);
+        }
         print('disconnected');
         capturing = false;
       },
@@ -206,7 +219,7 @@ class _HomeState extends State<Home> {
     });
   }
 
-  pageSelector() {
+  Widget pageSelector() {
     if (myPhoneSid != "") {
       return Stack(
         children: [
@@ -284,7 +297,7 @@ class _HomeState extends State<Home> {
         ],
       );
     } else {
-      return const PhoneSelectorPage(myPhones: []);
+      return PhoneSelectorPage(myPhones: myphones);
     }
   }
 
