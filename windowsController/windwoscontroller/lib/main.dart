@@ -5,10 +5,7 @@ import 'package:windwoscontroller/Login.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  windowManager.waitUntilReadyToShow(
-      const WindowOptions(
-        center: true,
-      ), () async {
+  windowManager.waitUntilReadyToShow(const WindowOptions(), () async {
     await windowManager.show();
     await windowManager.focus();
   });

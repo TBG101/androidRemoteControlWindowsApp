@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:windwoscontroller/home.dart';
-import 'package:windwoscontroller/phoneSelector.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -17,7 +16,7 @@ class _LoginPageState extends State<LoginPage> {
   TextEditingController passowrd = TextEditingController();
 
   Future<bool> login() async {
-    var url = Uri.parse('http://192.168.1.13:5000/login');
+    var url = Uri.parse('http://192.168.1.51:5000/login');
 
     var response = await http.post(url,
         headers: {'Content-Type': 'application/json'},
@@ -27,6 +26,7 @@ class _LoginPageState extends State<LoginPage> {
             'password': passowrd.text,
           },
         ));
+
     // check the status code for the result
     if (response.statusCode == 200) {
       print("status == 200");
@@ -35,7 +35,7 @@ class _LoginPageState extends State<LoginPage> {
       await prefs.setString('token', data["access_token"]);
       return true;
     } else {
-      print('Request failed with status: ${response.statusCode}.');
+      debugPrint('Request failed with status: ${response.statusCode}.');
     }
     return false;
   }
@@ -46,7 +46,7 @@ class _LoginPageState extends State<LoginPage> {
 
     if (_token != null) {
       var r = await http
-          .get(Uri.parse("http://192.168.1.13:5000/protected"), headers: {
+          .get(Uri.parse("http://192.168.1.51:5000/protected"), headers: {
         "Authorization": "Bearer $_token",
         'Content-Type': 'application/json',
       });
@@ -77,7 +77,11 @@ class _LoginPageState extends State<LoginPage> {
   @override
   void initState() {
     super.initState();
-    checkAcces();
+    try {
+      checkAcces();
+    } catch (e) {
+      debugPrint("problme with checking Token: ${e.toString()}");
+    }
   }
 
   @override
@@ -125,14 +129,19 @@ class _LoginPageState extends State<LoginPage> {
                 width: 100,
                 child: ElevatedButton(
                   onPressed: () {
-                    login().then((value) {
-                      if (value) {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => const Home()),
-                        );
-                      }
-                    });
+                    try {
+                      login().then((value) {
+                        if (value) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (context) => const Home()),
+                          );
+                        }
+                      });
+                    } catch (e) {
+                      debugPrint("probleme with loggin in: ${e.toString()}");
+                    }
                   },
                   child: const Text("Log in"),
                 ),

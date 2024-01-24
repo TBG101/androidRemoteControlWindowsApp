@@ -39,7 +39,7 @@ class _HomeState extends State<Home> {
   void tryConnecting() async {
     var _token = await getToken();
     socket = IO.io(
-        'ws://192.168.1.13:5000',
+        'ws://192.168.1.51:5000',
         OptionBuilder().setTransports(["websocket"]).setExtraHeaders({
           'Authorization': ['Bearer $_token'],
           'autoConnect': true,
@@ -217,12 +217,21 @@ class _HomeState extends State<Home> {
     setState(() {
       myPhoneSid = myphones[index];
     });
+    print(index);
   }
 
   Widget pageSelector() {
     if (myPhoneSid != "") {
       return Stack(
         children: [
+          Align(
+            alignment: Alignment.topLeft,
+            child: ElevatedButton(
+                onPressed: () {
+                  // IMPELEMNT LOG OUT
+                },
+                child: const Text("Log out")),
+          ),
           Row(
             mainAxisAlignment: MainAxisAlignment.start,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -297,7 +306,10 @@ class _HomeState extends State<Home> {
         ],
       );
     } else {
-      return PhoneSelectorPage(myPhones: myphones);
+      return PhoneSelectorPage(
+        myPhones: myphones,
+        callbackFunction: selectPhone,
+      );
     }
   }
 
