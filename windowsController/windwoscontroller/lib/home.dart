@@ -1,10 +1,10 @@
 import 'dart:convert';
-import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:socket_io_client/socket_io_client.dart';
+import 'package:windwoscontroller/Login.dart';
 import 'package:windwoscontroller/phoneSelector.dart';
 import 'package:windwoscontroller/widget/buttonWidget.dart';
 
@@ -39,7 +39,7 @@ class _HomeState extends State<Home> {
   void tryConnecting() async {
     var _token = await getToken();
     socket = IO.io(
-        'ws://192.168.1.51:5000',
+        'ws://192.168.1.13:5000',
         OptionBuilder().setTransports(["websocket"]).setExtraHeaders({
           'Authorization': ['Bearer $_token'],
           'autoConnect': true,
@@ -102,7 +102,7 @@ class _HomeState extends State<Home> {
     });
   }
 
-  lock() {
+  lock() async {
     socket.emit("message", [
       {
         "data": "lock",
@@ -113,7 +113,23 @@ class _HomeState extends State<Home> {
   }
 
   void startCapture() {
-    if (capturing == true) {
+    if (socket.connected) {
+      setState(() {
+        capturing = true;
+      });
+
+      socket.emit("message", [
+        {
+          "data": "capture",
+          "target": myPhoneSid,
+          "sid": mysid,
+        }
+      ]);
+    }
+  }
+
+  void stopCapture() {
+    if (socket.connected) {
       setState(() {
         capturing = false;
         imageString = null;
@@ -125,24 +141,18 @@ class _HomeState extends State<Home> {
           "sid": mysid,
         }
       ]);
-    } else {
-      if (socket.connected) {
-        setState(() {
-          capturing = true;
-        });
-
-        socket.emit("message", [
-          {
-            "data": "capture",
-            "target": myPhoneSid,
-            "sid": mysid,
-          }
-        ]);
-      }
     }
   }
 
-  void volumeUpFunction() {
+  void pressedCapture() async {
+    if (capturing == false) {
+      startCapture();
+    } else {
+      stopCapture();
+    }
+  }
+
+  void volumeUpFunction() async {
     if (socket.connected == false) {
       return;
     }
@@ -156,7 +166,7 @@ class _HomeState extends State<Home> {
     ]);
   }
 
-  void volumeDownFunction() {
+  void volumeDownFunction() async {
     if (socket.connected == false) {
       return;
     }
@@ -172,7 +182,7 @@ class _HomeState extends State<Home> {
     );
   }
 
-  sendTap(double x, double y, double height, double width) {
+  sendTap(double x, double y, double height, double width) async {
     socket.emit("message", [
       {
         "data": "tap",
@@ -184,7 +194,8 @@ class _HomeState extends State<Home> {
     ]);
   }
 
-  swipe(Offset offset1, Offset offset2, double height, double width) {
+  swipe(Offset offset1, Offset offset2, double height, double width) async {
+    // IMPLEMENT new with sendevent~
     // adb shell input swipe x1 y1 x2 y2
 
     var x1 = (offset1.dx / width) * 100;
@@ -205,18 +216,38 @@ class _HomeState extends State<Home> {
     ]);
   }
 
+  disconnectUser() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+
+    await prefs.setString('token', "").then((value) =>
+        Navigator.pushReplacement(context,
+            MaterialPageRoute(builder: (context) => const LoginPage())));
+  }
+
   @override
   void dispose() {
-    socket.disconnect();
-    socket.dispose();
-    socket.destroy();
+    if (capturing) {
+      socket.emit("createconnection", [
+        {"mysid": "", "target": myPhoneSid}
+      ]);
+    }
+    try {
+      socket.disconnect();
+      socket.dispose();
+      socket.destroy();
+    } catch (e) {
+      debugPrint("proleme with disposing of socket $e");
+    }
     super.dispose();
   }
 
-  selectPhone(int index) {
+  selectPhone(int index) async {
     setState(() {
       myPhoneSid = myphones[index];
     });
+    socket.emit("createconnection", [
+      {"mysid": mysid, "target": myPhoneSid}
+    ]);
     print(index);
   }
 
@@ -226,11 +257,18 @@ class _HomeState extends State<Home> {
         children: [
           Align(
             alignment: Alignment.topLeft,
-            child: ElevatedButton(
-                onPressed: () {
-                  // IMPELEMNT LOG OUT
-                },
-                child: const Text("Log out")),
+            child: MyButton(
+              textString: "Back",
+              function: () {
+                stopCapture();
+                socket.emit("createconnection", [
+                  {"mysid": "", "target": myPhoneSid}
+                ]);
+                setState(() {
+                  myPhoneSid = "";
+                });
+              },
+            ),
           ),
           Row(
             mainAxisAlignment: MainAxisAlignment.start,
@@ -243,7 +281,7 @@ class _HomeState extends State<Home> {
                   children: [
                     MyButton(
                       textString: capturing ? "Stop capture" : "Start capture",
-                      function: startCapture,
+                      function: pressedCapture,
                     ),
                     MyButton(
                       textString: "Lock",
@@ -295,6 +333,8 @@ class _HomeState extends State<Home> {
                               imageKey.currentContext!.size!.width);
                         },
                         child: Image.memory(
+                          cacheHeight:
+                              MediaQuery.of(context).size.height.toInt(),
                           gaplessPlayback: true,
                           imageString!,
                           key: imageKey,
@@ -306,9 +346,17 @@ class _HomeState extends State<Home> {
         ],
       );
     } else {
-      return PhoneSelectorPage(
-        myPhones: myphones,
-        callbackFunction: selectPhone,
+      return Stack(
+        children: [
+          const MyButton(textString: "Log out"),
+          Padding(
+            padding: const EdgeInsets.only(top: 60),
+            child: PhoneSelectorPage(
+              myPhones: myphones,
+              callbackFunction: selectPhone,
+            ),
+          ),
+        ],
       );
     }
   }

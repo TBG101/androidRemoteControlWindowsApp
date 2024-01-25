@@ -16,7 +16,7 @@ class _LoginPageState extends State<LoginPage> {
   TextEditingController passowrd = TextEditingController();
 
   Future<bool> login() async {
-    var url = Uri.parse('http://192.168.1.51:5000/login');
+    var url = Uri.parse('http://192.168.1.13:5000/login');
 
     var response = await http.post(url,
         headers: {'Content-Type': 'application/json'},
@@ -46,7 +46,7 @@ class _LoginPageState extends State<LoginPage> {
 
     if (_token != null) {
       var r = await http
-          .get(Uri.parse("http://192.168.1.51:5000/protected"), headers: {
+          .get(Uri.parse("http://192.168.1.13:5000/protected"), headers: {
         "Authorization": "Bearer $_token",
         'Content-Type': 'application/json',
       });
