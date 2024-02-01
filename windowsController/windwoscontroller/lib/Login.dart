@@ -1,8 +1,10 @@
 import 'dart:convert';
+import 'dart:core';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:windwoscontroller/home.dart';
+import 'package:windwoscontroller/register.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -15,8 +17,8 @@ class _LoginPageState extends State<LoginPage> {
   TextEditingController email = TextEditingController();
   TextEditingController passowrd = TextEditingController();
 
-  Future<bool> login() async {
-    var url = Uri.parse('http://192.168.1.13:5000/login');
+  Future<int> getLoginStatus() async {
+    var url = Uri.parse('https://testiingdeploy.onrender.com/login');
 
     var response = await http.post(url,
         headers: {'Content-Type': 'application/json'},
@@ -27,51 +29,74 @@ class _LoginPageState extends State<LoginPage> {
           },
         ));
 
-    // check the status code for the result
+    // check the status code if 200 then store the token
     if (response.statusCode == 200) {
-      print("status == 200");
       Map<String, dynamic> data = json.decode(response.body);
       final SharedPreferences prefs = await SharedPreferences.getInstance();
       await prefs.setString('token', data["access_token"]);
-      return true;
-    } else {
-      debugPrint('Request failed with status: ${response.statusCode}.');
     }
-    return false;
+    return response.statusCode;
+  }
+
+  void login() {
+    getLoginStatus().then(
+      (value) {
+        if (value == 200) {
+          debugPrint("permitted to enter");
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const Home()),
+          );
+        } else if (value == 401) {
+          debugPrint('Request failed with status: $value.');
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text("Email or password are not correct"),
+          ));
+        } else {
+          debugPrint('Error with status $value.');
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text("Email or password are not correct"),
+          ));
+        }
+      },
+    );
   }
 
   Future<bool> checkToken() async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     final String? _token = prefs.getString('token');
+    if (_token == null || _token.isEmpty) return false;
 
-    if (_token != null) {
-      var r = await http
-          .get(Uri.parse("http://192.168.1.13:5000/protected"), headers: {
-        "Authorization": "Bearer $_token",
-        'Content-Type': 'application/json',
-      });
-      if (r.statusCode == 200) {
-        // PERMITTED TO ENTER
-        return true;
-      } else
-        print("not permitedd");
+    var r = await http.get(
+        Uri.parse("https://testiingdeploy.onrender.com/protected"),
+        headers: {
+          "Authorization": "Bearer $_token",
+          'Content-Type': 'application/json',
+        });
+    if (r.statusCode != 200) {
+      // NOT PERMITTED
+      debugPrint("not permitedd");
+
+      return false;
     }
-    if (_token == null) {
-      print("no token");
-    }
-    return false;
+
+    // PERMITTED TO ENTER
+    return true;
   }
 
-  checkAcces() {
+  void checkAcces() {
     checkToken().then((value) => {
           if (value)
-            {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const Home()),
-              )
-            }
+            Navigator.pushReplacement(
+                context, MaterialPageRoute(builder: (context) => const Home()))
         });
+  }
+
+  register() {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => Register()),
+    );
   }
 
   @override
@@ -80,7 +105,7 @@ class _LoginPageState extends State<LoginPage> {
     try {
       checkAcces();
     } catch (e) {
-      debugPrint("problme with checking Token: ${e.toString()}");
+      throw ("problem with checking Token: ${e.toString()}");
     }
   }
 
@@ -128,23 +153,20 @@ class _LoginPageState extends State<LoginPage> {
                 height: 45,
                 width: 100,
                 child: ElevatedButton(
-                  onPressed: () {
-                    try {
-                      login().then((value) {
-                        if (value) {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (context) => const Home()),
-                          );
-                        }
-                      });
-                    } catch (e) {
-                      debugPrint("probleme with loggin in: ${e.toString()}");
-                    }
-                  },
+                  onPressed: login,
                   child: const Text("Log in"),
                 ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(5.0),
+              child: GestureDetector(
+                onTap: register,
+                child: const Text("Register Here",
+                    style: TextStyle(
+                        color: Color.fromARGB(255, 255, 255, 255),
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500)),
               ),
             ),
           ],

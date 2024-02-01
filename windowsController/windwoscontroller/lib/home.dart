@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -19,10 +21,9 @@ class _HomeState extends State<Home> {
   late IO.Socket socket;
 
   final imageKey = GlobalKey();
-
   Uint8List? imageString;
 
-  var swieplist = <Offset>[];
+  var swieplist = <List<double>>[];
   var capturing = false;
   String mysid = "";
 
@@ -39,7 +40,7 @@ class _HomeState extends State<Home> {
   void tryConnecting() async {
     var _token = await getToken();
     socket = IO.io(
-        'ws://192.168.1.13:5000',
+        'wss://testiingdeploy.onrender.com',
         OptionBuilder().setTransports(["websocket"]).setExtraHeaders({
           'Authorization': ['Bearer $_token'],
           'autoConnect': true,
@@ -57,12 +58,12 @@ class _HomeState extends State<Home> {
 
   void connect(String key) async {
     socket.onConnect((_) {
-      print('connected');
+      debugPrint('connected');
     });
 
     socket.on("getsid", (data) {
       mysid = data;
-      print(mysid);
+      debugPrint(mysid);
     });
 
     socket.on("getphones", (data) {
@@ -72,7 +73,7 @@ class _HomeState extends State<Home> {
       setState(() {
         myphones = resultList.map((element) => element.trim()).toList();
       });
-      print(myphones);
+      debugPrint(myphones.toString());
     });
 
     socket.onDisconnect(
@@ -100,9 +101,23 @@ class _HomeState extends State<Home> {
         });
       }
     });
+
+    socket.on(
+      "message",
+      (data) {
+        if (data["data"] == "disconnected") {
+          setState(() {
+            myPhoneSid = "";
+            capturing = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text("Phone disconnected")));
+        }
+      },
+    );
   }
 
-  lock() async {
+  void lock() async {
     socket.emit("message", [
       {
         "data": "lock",
@@ -182,7 +197,7 @@ class _HomeState extends State<Home> {
     );
   }
 
-  sendTap(double x, double y, double height, double width) async {
+  void sendTap(double x, double y, double height, double width) async {
     socket.emit("message", [
       {
         "data": "tap",
@@ -194,43 +209,100 @@ class _HomeState extends State<Home> {
     ]);
   }
 
-  swipe(Offset offset1, Offset offset2, double height, double width) async {
-    // IMPLEMENT new with sendevent~
-    // adb shell input swipe x1 y1 x2 y2
-
-    var x1 = (offset1.dx / width) * 100;
-    var y1 = (offset1.dy / height) * 100;
-    var x2 = (offset2.dx / width) * 100;
-    var y2 = (offset2.dy / height) * 100;
-
-    socket.emit("message", [
-      {
-        "data": "swipe",
-        "x1": x1.toStringAsFixed(2),
-        "y1": y1.toStringAsFixed(2),
-        "x2": x2.toStringAsFixed(2),
-        "y2": y2.toStringAsFixed(2),
-        "target": myPhoneSid,
-        "sid": mysid,
-      }
+  void selectPhone(int index) async {
+    setState(() {
+      myPhoneSid = myphones[index];
+    });
+    socket.emit("createconnection", [
+      {"mysid": mysid, "target": myPhoneSid}
     ]);
   }
 
-  disconnectUser() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
+  List<List<double>> simplifyPoints(
+      List<List<double>> points, double tolerance) {
+    if (points.length < 3) {
+      return points;
+    }
 
-    await prefs.setString('token', "").then((value) =>
-        Navigator.pushReplacement(context,
-            MaterialPageRoute(builder: (context) => const LoginPage())));
+    List<List<double>> simplifiedPoints = [];
+    simplifiedPoints.add([points.first[0], points.first[1]]);
+
+    _simplify(points, 0, points.length - 1, tolerance, simplifiedPoints);
+
+    simplifiedPoints.add([points.last[0], points.last[1]]);
+    return simplifiedPoints;
+  }
+
+  void _simplify(List<List<double>> points, int start, int end,
+      double tolerance, List<List<double>> simplifiedPoints) {
+    double maxDistance = 0;
+    int farthestIndex = 0;
+
+    for (int i = start + 1; i < end; i++) {
+      double distance =
+          perpendicularDistance(points[i], points[start], points[end]);
+
+      if (distance > maxDistance) {
+        maxDistance = distance;
+        farthestIndex = i;
+      }
+    }
+
+    if (maxDistance > tolerance) {
+      _simplify(points, start, farthestIndex, tolerance, simplifiedPoints);
+      simplifiedPoints
+          .add([points[farthestIndex][0], points[farthestIndex][1]]);
+      _simplify(points, farthestIndex, end, tolerance, simplifiedPoints);
+    }
+  }
+
+  double perpendicularDistance(
+      List<double> point, List<double> lineStart, List<double> lineEnd) {
+    double lineLength = distanceBetween(lineStart, lineEnd);
+    if (lineLength == 0) {
+      return distanceBetween(point, lineStart);
+    }
+
+    double t = ((point[0] - lineStart[0]) * (lineEnd[0] - lineStart[0]) +
+            (point[1] - lineStart[1]) * (lineEnd[1] - lineStart[1])) /
+        (lineLength * lineLength);
+
+    t = t.clamp(0.0, 1.0);
+
+    double x = lineStart[0] + t * (lineEnd[0] - lineStart[0]);
+    double y = lineStart[1] + t * (lineEnd[1] - lineStart[1]);
+
+    return distanceBetween(point, [x, y]);
+  }
+
+  double distanceBetween(List<double> a, List<double> b) {
+    return sqrt(pow(a[0] - b[0], 2) + pow(a[1] - b[1], 2));
+  }
+
+  void disconnectUser() async {
+    try {
+      socket.disconnect();
+      socket.dispose();
+      socket.destroy();
+      mysid = "";
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      await prefs.setString('token', "").then((value) =>
+          Navigator.pushReplacement(context,
+              MaterialPageRoute(builder: (context) => const LoginPage())));
+    } catch (e) {
+      throw "error on logout $e";
+    }
   }
 
   @override
   void dispose() {
-    if (capturing) {
+    if (myPhoneSid.isNotEmpty) {
+      stopCapture();
       socket.emit("createconnection", [
         {"mysid": "", "target": myPhoneSid}
       ]);
     }
+
     try {
       socket.disconnect();
       socket.dispose();
@@ -239,16 +311,6 @@ class _HomeState extends State<Home> {
       debugPrint("proleme with disposing of socket $e");
     }
     super.dispose();
-  }
-
-  selectPhone(int index) async {
-    setState(() {
-      myPhoneSid = myphones[index];
-    });
-    socket.emit("createconnection", [
-      {"mysid": mysid, "target": myPhoneSid}
-    ]);
-    print(index);
   }
 
   Widget pageSelector() {
@@ -310,27 +372,51 @@ class _HomeState extends State<Home> {
                         )
                       ]),
                       child: GestureDetector(
+                        onLongPressUp: () => print('on long pressed up'),
+                        onLongPressDown: (_) => print('on long pressed down'),
+                        onLongPressStart: (_) => print('on long press start'),
+                        onLongPressCancel: () => print('on long press cancel'),
+                        onPanStart: (details) {
+                          swieplist = [];
+                          var x = double.parse(((details.localPosition.dx /
+                                      imageKey.currentContext!.size!.width) *
+                                  100)
+                              .toStringAsFixed(2));
+                          var y = double.parse(((details.localPosition.dy /
+                                      imageKey.currentContext!.size!.height) *
+                                  100)
+                              .toStringAsFixed(2));
+                          swieplist.add([x, y]);
+                        },
+                        onPanUpdate: (DragUpdateDetails details) {
+                          var x = double.parse(((details.localPosition.dx /
+                                      imageKey.currentContext!.size!.width) *
+                                  100)
+                              .toStringAsFixed(2));
+                          var y = double.parse(((details.localPosition.dy /
+                                      imageKey.currentContext!.size!.height) *
+                                  100)
+                              .toStringAsFixed(2));
+
+                          swieplist.add([x, y]);
+
+                          print(details.localPosition);
+                        },
+                        onPanEnd: (details) {
+                          socket.emit("message", {
+                            "data": "swipe",
+                            "coordinates":
+                                simplifyPoints(swieplist, 5).toString(),
+                            "target": myPhoneSid,
+                            "sid": mysid,
+                          });
+                        },
                         onTapDown: (details) {
                           double x = details.localPosition.dx;
                           double y = details.localPosition.dy;
                           sendTap(x, y, imageKey.currentContext!.size!.height,
                               imageKey.currentContext!.size!.width);
                           print("x $x y $y");
-                        },
-                        onPanStart: (details) {
-                          swieplist = [];
-                          swieplist.add(details.localPosition);
-                        },
-                        onPanUpdate: (DragUpdateDetails details) {
-                          print('Delta: ${details.localPosition}');
-                          swieplist.add(details.localPosition);
-                        },
-                        onPanEnd: (details) {
-                          var p1 = swieplist.first;
-                          var p2 = swieplist.last;
-
-                          swipe(p1, p2, imageKey.currentContext!.size!.height,
-                              imageKey.currentContext!.size!.width);
                         },
                         child: Image.memory(
                           cacheHeight:
@@ -345,20 +431,20 @@ class _HomeState extends State<Home> {
           ),
         ],
       );
-    } else {
-      return Stack(
-        children: [
-          const MyButton(textString: "Log out"),
-          Padding(
-            padding: const EdgeInsets.only(top: 60),
-            child: PhoneSelectorPage(
-              myPhones: myphones,
-              callbackFunction: selectPhone,
-            ),
-          ),
-        ],
-      );
     }
+
+    return Stack(
+      children: [
+        MyButton(textString: "Log out", function: disconnectUser),
+        Padding(
+          padding: const EdgeInsets.only(top: 60),
+          child: PhoneSelectorPage(
+            myPhones: myphones,
+            callbackFunction: selectPhone,
+          ),
+        ),
+      ],
+    );
   }
 
   @override

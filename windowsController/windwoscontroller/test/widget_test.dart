@@ -8,7 +8,7 @@
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 
 void main() {
-  IO.Socket socket = IO.io('ws://192.168.1.13:5000');
+  IO.Socket socket = IO.io('wss://testiingdeploy.onrender.com');
 
   socket.onConnect((_) {
     print('connect');
